@@ -13,7 +13,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py .
+COPY main.py flight_core.py mcp_server.py ./
 COPY --from=frontend /fe/dist ./static
 
 EXPOSE 8000

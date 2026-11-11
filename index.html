@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Flight Scraper</title>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --card: #121722;
+    --card-2: #18202f;
+    --border: #232c3d;
+    --text: #e8edf6;
+    --muted: #8b96ab;
+    --accent: #4f8cff;
+    --accent-2: #7aa8ff;
+    --green: #34d399;
+    --red: #f87171;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    min-height: 100vh;
+    padding-bottom: 60px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+
+  header {
+    padding: 28px 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  header .logo { font-size: 26px; }
+  header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+  header p { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+
+  /* ---- form ---- */
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 16px; }
+  .seg button {
+    background: var(--card-2); color: var(--muted);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 9px 0; font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: all .15s;
+  }
+  .seg button.active { background: rgba(79,140,255,.15); color: var(--accent-2); border-color: var(--accent); }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 5px; font-weight: 600; }
+  .field input, .field select {
+    width: 100%; background: var(--card-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 11px 12px; font-size: 15px;
+  }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
+  .field input::placeholder { color: #566079; }
+
+  button.go {
+    width: 100%; margin-top: 6px; padding: 13px 0;
+    background: var(--accent); color: #fff; border: none; border-radius: 12px;
+    font-size: 15px; font-weight: 700; cursor: pointer; transition: background .15s;
+  }
+  button.go:hover { background: var(--accent-2); }
+  button.go:disabled { opacity: .55; cursor: progress; }
+
+  .error {
+    margin-top: 14px; padding: 12px 14px; border-radius: 10px;
+    background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.3);
+    color: var(--red); font-size: 14px; display: none;
+  }
+
+  /* ---- results ---- */
+  .summary {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin: 22px 2px 12px; flex-wrap: wrap; gap: 6px;
+  }
+  .summary .title { font-size: 15px; font-weight: 600; }
+  .summary .title span { color: var(--muted); font-weight: 400; font-size: 13px; }
+  .summary .from { color: var(--accent-2); font-weight: 700; font-size: 15px; }
+
+  .flight {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; margin-bottom: 12px; display: grid; grid-template-columns: auto 1fr auto;
+    gap: 16px; align-items: center;
+  }
+  .price { text-align: left; min-width: 88px; }
+  .price .amt { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+  .price .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+  .price .best { display: inline-block; margin-top: 5px; font-size: 10px; font-weight: 700; color: var(--green); background: rgba(52,211,153,.12); padding: 2px 7px; border-radius: 20px; }
+
+  .main .airlines { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+  .leg { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .leg .t { font-size: 15px; font-weight: 700; }
+  .leg .code { font-size: 11px; color: var(--muted); }
+  .leg .bar { flex: 1; height: 1px; background: var(--border); position: relative; min-width: 20px; }
+  .leg .bar::after { content: "✈"; position: absolute; right: 0; top: -10px; font-size: 11px; color: var(--muted); }
+  .leg .dur { font-size: 11px; color: var(--muted); }
+  .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .stops-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: var(--card-2); color: var(--muted); }
+  .stops-badge.nonstop { color: var(--green); background: rgba(52,211,153,.12); }
+  .eco { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; color: var(--green); background: rgba(52,211,153,.12); margin-left: 6px; }
+
+  .book { text-align: right; }
+  .book a {
+    display: inline-block; padding: 9px 14px; border-radius: 10px;
+    background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; text-decoration: none;
+    white-space: nowrap;
+  }
+  .book a:hover { background: var(--accent-2); }
+
+  .empty { text-align: center; color: var(--muted); padding: 40px 0; font-size: 14px; }
+
+  @media (max-width: 560px) {
+    .flight { grid-template-columns: 1fr; gap: 12px; }
+    .book { text-align: left; }
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <span class="logo">✈️</span>
+      <div>
+        <h1>Flight Scraper</h1>
+        <p>Live Google Flights results, free</p>
+      </div>
+    </header>
+
+    <div class="card">
+      <div class="seg" id="tripSeg">
+        <button data-trip="one-way" class="active">One-way</button>
+        <button data-trip="round-trip">Round-trip</button>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label>From</label>
+          <input id="from" type="text" maxlength="3" placeholder="DFW" value="DFW" />
+        </div>
+        <div class="field">
+          <label>To</label>
+          <input id="to" type="text" maxlength="3" placeholder="JFK" value="JFK" />
+        </div>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label>Departure</label>
+          <input id="date" type="date" />
+        </div>
+        <div class="field" id="returnField">
+          <label>Return</label>
+          <input id="returnDate" type="date" />
+        </div>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label>Cabin</label>
+          <select id="seat">
+            <option value="economy">Economy</option>
+            <option value="premium-economy">Premium economy</option>
+            <option value="business">Business</option>
+            <option value="first">First</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Stops</label>
+          <select id="stops">
+            <option value="">Any</option>
+            <option value="0">Nonstop only</option>
+            <option value="1">1 stop max</option>
+            <option value="2">2 stops max</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label>Adults</label>
+          <select id="adults">
+            <option>1</option><option>2</option><option>3</option>
+            <option>4</option><option>5</option><option>6</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Currency</label>
+          <select id="currency">
+            <option>USD</option><option>EUR</option><option>GBP</option><option>CAD</option>
+            <option>AUD</option><option>JPY</option><option>MXN</option><option>INR</option>
+          </select>
+        </div>
+      </div>
+      <button class="go" id="go">Search flights</button>
+      <div class="error" id="error"></div>
+    </div>
+
+    <div class="summary" id="summary" style="display:none;"></div>
+    <div id="results"></div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const CURRENCY_SYMBOLS = { USD: "$", EUR: "€", GBP: "£", CAD: "C$", AUD: "A$", JPY: "¥", MXN: "MX$", INR: "₹" };
+
+    function iso(d) { return d.toISOString().slice(0, 10); }
+    function plusDays(n) { const d = new Date(); d.setDate(d.getDate() + n); return iso(d); }
+
+    $("date").value = plusDays(14);
+    $("returnDate").value = plusDays(21);
+
+    let trip = "one-way";
+    document.querySelectorAll("#tripSeg button").forEach((b) => {
+      b.addEventListener("click", () => {
+        trip = b.dataset.trip;
+        document.querySelectorAll("#tripSeg button").forEach((x) => x.classList.toggle("active", x === b));
+        $("returnField").style.display = trip === "round-trip" ? "" : "none";
+      });
+    });
+    $("returnField").style.display = "none";
+
+    function fmtTime(isoStr) {
+      const [d, t] = isoStr.split("T");
+      const [y, m, day] = d.split("-").map(Number);
+      const [h, min] = t.split(":");
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      return { date: `${months[m-1]} ${day}`, time: `${h}:${min}` };
+    }
+
+    function renderFlight(f, symbol) {
+      const first = f.segments[0], last = f.segments[f.segments.length - 1];
+      const dep = fmtTime(first.departure), arr = fmtTime(last.arrival);
+      const airlines = f.airline_names.join(", ") || "Unknown airline";
+      const stopsLabel = f.stops === 0 ? "Nonstop" : (f.stops === 1 ? "1 stop" : `${f.stops} stops`);
+      const totalDur = f.segments.reduce((s, x) => s + (x.duration_minutes || 0), 0);
+      const h = Math.floor(totalDur / 60), m = totalDur % 60;
+      const durLabel = h ? `${h}h ${m}m` : `${m}m`;
+
+      let eco = "";
+      if (f.carbon_emission_grams && f.carbon_typical_grams && f.carbon_emission_grams < f.carbon_typical_grams) {
+        const pct = Math.round((1 - f.carbon_emission_grams / f.carbon_typical_grams) * 100);
+        if (pct > 0) eco = `<span class="eco">🌱 ${pct}% less CO₂</span>`;
+      }
+
+      const legs = f.segments.map((s) => {
+        const d = fmtTime(s.departure), a = fmtTime(s.arrival);
+        return `<div class="leg">
+          <div><div class="t">${d.time}</div><div class="code">${s.from_airport.code}</div></div>
+          <div class="bar"></div>
+          <div><div class="t">${a.time}</div><div class="code">${s.to_airport.code}</div></div>
+          <div class="dur">${s.duration}</div>
+        </div>`;
+      }).join("");
+
+      return `<div class="flight">
+        <div class="price">
+          <div class="amt">${symbol}${f.price}</div>
+          <div class="lbl">${trip === "round-trip" ? "round trip" : "one-way"}</div>
+          ${f.price === cheapestPrice ? '<span class="best">Best</span>' : ""}
+        </div>
+        <div class="main">
+          <div class="airlines">${airlines}</div>
+          ${legs}
+          <div class="meta">
+            <span class="stops-badge ${f.stops === 0 ? "nonstop" : ""}">${stopsLabel}</span>
+            <span> · ${durLabel}</span>${eco}
+          </div>
+        </div>
+        <div class="book"><a href="${bookUrl}" target="_blank" rel="noopener">Book ↗</a></div>
+      </div>`;
+    }
+
+    let cheapestPrice = 0, bookUrl = "";
+
+    $("go").addEventListener("click", async () => {
+      const from = $("from").value.trim().toUpperCase();
+      const to = $("to").value.trim().toUpperCase();
+      const date = $("date").value;
+      const seat = $("seat").value;
+      const adults = $("adults").value;
+      const currency = $("currency").value;
+      const stops = $("stops").value;
+
+      const err = $("error");
+      err.style.display = "none";
+      if (!from || !to || !date) {
+        err.textContent = "Please fill in from, to, and departure date.";
+        err.style.display = "block"; return;
+      }
+      if (from.length !== 3 || to.length !== 3) {
+        err.textContent = "Airport codes must be 3 letters (e.g. DFW).";
+        err.style.display = "block"; return;
+      }
+
+      const params = new URLSearchParams({
+        from_airport: from, to_airport: to, date, seat, adults, currency,
+        trip, language: "en-US",
+      });
+      if (trip === "round-trip") {
+        const rd = $("returnDate").value;
+        if (!rd) { err.textContent = "Return date is required for round-trip."; err.style.display = "block"; return; }
+        params.set("return_date", rd);
+      }
+      if (stops !== "") params.set("max_stops", stops);
+
+      const btn = $("go");
+      btn.disabled = true; btn.textContent = "Searching…";
+      $("results").innerHTML = ""; $("summary").style.display = "none";
+
+      try {
+        const res = await fetch("/flights?" + params.toString());
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.detail || `Error ${res.status}`);
+        }
+        const data = await res.json();
+        bookUrl = data.book_url || "";
+        cheapestPrice = data.cheapest_price;
+
+        const symbol = CURRENCY_SYMBOLS[currency] || (currency + " ");
+        $("summary").innerHTML =
+          `<div class="title">${data.count} flight${data.count === 1 ? "" : "s"} <span>· ${from} → ${to} · ${data.query.date}</span></div>` +
+          (data.cheapest_price != null ? `<div class="from">from ${symbol}${data.cheapest_price}</div>` : "");
+        $("summary").style.display = "flex";
+
+        $("results").innerHTML = data.flights.length
+          ? data.flights.map((f) => renderFlight(f, symbol)).join("")
+          : '<div class="empty">No flights found for that route. Try different dates or a nonstop search.</div>';
+      } catch (e) {
+        err.textContent = "Search failed: " + e.message;
+        err.style.display = "block";
+      } finally {
+        btn.disabled = false; btn.textContent = "Search flights";
+      }
+    });
+  </script>
+</body>
+</html>

@@ -5,7 +5,7 @@ import re
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from fast_flights import (
     FlightsNotFound,
     FlightQuery,
@@ -24,8 +24,6 @@ app.add_middleware(
 )
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-
-INDEX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
 
 
 def _fmt_dt(d) -> str:
@@ -48,13 +46,6 @@ def _airline_map(result) -> dict:
     if meta is None:
         return {}
     return {a.code: a.name for a in meta.airlines}
-
-
-@app.get("/", include_in_schema=False)
-def index():
-    if os.path.exists(INDEX_PATH):
-        return FileResponse(INDEX_PATH, media_type="text/html")
-    return {"status": "ok", "note": "frontend (index.html) not found"}
 
 
 @app.get("/health")
@@ -183,3 +174,14 @@ def search_flights(
         "count": len(flights_out),
         "flights": flights_out,
     }
+
+
+# Serve the built React frontend. In Docker it lands in ./static; locally, ./fe/dist.
+_BASE = os.path.dirname(os.path.abspath(__file__))
+for _static_dir in (
+    os.path.join(_BASE, "static"),
+    os.path.join(_BASE, "fe", "dist"),
+):
+    if os.path.isdir(_static_dir):
+        app.mount("/", StaticFiles(directory=_static_dir, html=True), name="static")
+        break

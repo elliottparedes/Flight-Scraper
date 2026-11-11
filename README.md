@@ -84,10 +84,60 @@ curl "http://localhost:8000/flights?from_airport=DFW&to_airport=JFK&date=2026-12
 }
 ```
 
+### `GET /airports`
+
+Search the bundled airport dataset (7,950 airports) by IATA code, name, city, state, or country.
+
+```bash
+curl "http://localhost:8000/airports?q=dallas&limit=5"
+curl "http://localhost:8000/airports/DFW"
+```
+
+Returns `{"results": [{"code", "name", "city", "state", "country", "lat", "lon"}, ...]}`.
+
 ### Other endpoints
 
 - `GET /health` → `{"status": "ok"}`
 - `GET /` → the web UI
+
+## MCP server
+
+The same core is exposed as a **Model Context Protocol (MCP) server**, so AI agents
+(Claude Desktop, Cursor, etc.) can search flights and airports as tool calls.
+
+**Tools**
+
+| Tool | What it does |
+|---|---|
+| `search_flights` | Live Google Flights search (one-way / round-trip, seat, stops, currency) |
+| `search_airports` | Airport autocomplete by code / name / city |
+| `airport_info` | Details for one IATA code |
+| `cheapest_days` | Cheapest one-way price for each day over a window |
+| `flight_stats` | min / median / max price, avg stops for a route+date |
+
+**Run it**
+
+```bash
+# stdio (local — point Claude Desktop / Cursor at this command)
+python mcp_server.py
+
+# streamable HTTP (remote — connect a client to http://host:8020/mcp)
+python mcp_server.py --transport streamable-http --host 0.0.0.0 --port 8020
+```
+
+**Claude Desktop / Cursor config (stdio)**
+
+```json
+{
+  "mcpServers": {
+    "flight-scraper": {
+      "command": "python",
+      "args": ["mcp_server.py"],
+      "cwd": "/path/to/Flight-Scraper"
+    }
+  }
+}
+```
 
 ## Notes
 

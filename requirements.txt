@@ -1,3 +1,5 @@
 fast-flights==3.1.0
 fastapi
 uvicorn[standard]
+mcp>=2,<3
+airportsdata

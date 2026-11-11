@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ExternalLink,
   Leaf,
@@ -16,6 +16,13 @@ import { Select } from "@/components/ui/select";
 interface Airport {
   code: string;
   name: string;
+}
+interface AirportSuggestion {
+  code: string;
+  name: string;
+  city: string;
+  state: string | null;
+  country: string | null;
 }
 interface Segment {
   from_airport: Airport;
@@ -87,6 +94,99 @@ function fmtDuration(totalMin: number) {
   return h ? `${h}h ${m}m` : `${m}m`;
 }
 
+function AirportInput({
+  id,
+  label,
+  value,
+  onSelect,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onSelect: (code: string) => void;
+}) {
+  const [text, setText] = useState(value);
+  const [results, setResults] = useState<AirportSuggestion[]>([]);
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const q = text.trim();
+    if (q.length < 2 || q.toUpperCase() === value) {
+      setResults([]);
+      setOpen(false);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/airports?q=${encodeURIComponent(q)}&limit=8`);
+        if (res.ok) {
+          const d = await res.json();
+          setResults(d.results);
+          setOpen(true);
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 180);
+    return () => clearTimeout(t);
+  }, [text, value]);
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  return (
+    <div className="relative" ref={boxRef}>
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        value={text}
+        autoComplete="off"
+        placeholder="Type a city or code…"
+        onChange={(e) => {
+          setText(e.target.value);
+          onSelect("");
+        }}
+      />
+      {open && results.length > 0 && (
+        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-lg">
+          {results.map((a) => (
+            <button
+              key={a.code}
+              type="button"
+              onClick={() => {
+                onSelect(a.code);
+                setText(a.code);
+                setOpen(false);
+              }}
+              className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+            >
+              <span className="min-w-0">
+                <span className="block truncate font-medium">{a.name}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {a.city}
+                  {a.state ? `, ${a.state}` : ""}
+                  {a.country ? ` · ${a.country}` : ""}
+                </span>
+              </span>
+              <span className="shrink-0 rounded border bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                {a.code}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [trip, setTrip] = useState<"one-way" | "round-trip">("one-way");
   const [from, setFrom] = useState("DFW");
@@ -102,12 +202,8 @@ export default function App() {
   const [data, setData] = useState<ApiResponse | null>(null);
 
   async function search() {
-    if (!from.trim() || !to.trim() || !date) {
-      setError("Fill in from, to, and departure date.");
-      return;
-    }
-    if (from.trim().length !== 3 || to.trim().length !== 3) {
-      setError("Airport codes must be 3 letters (e.g. DFW).");
+    if (!from || !to || !date) {
+      setError("Select a departure and arrival airport, plus a date.");
       return;
     }
     if (trip === "round-trip" && !returnDate) {
@@ -116,8 +212,8 @@ export default function App() {
     }
 
     const params = new URLSearchParams({
-      from_airport: from.trim().toUpperCase(),
-      to_airport: to.trim().toUpperCase(),
+      from_airport: from,
+      to_airport: to,
       date,
       seat,
       adults,
@@ -182,26 +278,8 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="from">From</Label>
-                <Input
-                  id="from"
-                  value={from}
-                  onChange={(e) => setFrom(e.target.value.toUpperCase())}
-                  maxLength={3}
-                  placeholder="DFW"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="to">To</Label>
-                <Input
-                  id="to"
-                  value={to}
-                  onChange={(e) => setTo(e.target.value.toUpperCase())}
-                  maxLength={3}
-                  placeholder="JFK"
-                />
-              </div>
+              <AirportInput id="from" label="From" value={from} onSelect={setFrom} />
+              <AirportInput id="to" label="To" value={to} onSelect={setTo} />
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -365,8 +443,6 @@ function FlightCard({
 }) {
   const first = flight.segments[0];
   const last = flight.segments[flight.segments.length - 1];
-  const dep = fmtTime(first.departure);
-  const arr = fmtTime(last.arrival);
   const airlines = flight.airline_names.join(", ") || "Unknown airline";
   const stopsLabel =
     flight.stops === 0 ? "Nonstop" : flight.stops === 1 ? "1 stop" : `${flight.stops} stops`;
